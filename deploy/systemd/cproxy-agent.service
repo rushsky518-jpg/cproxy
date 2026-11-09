@@ -1,0 +1,22 @@
+[Unit]
+Description=cproxy agent - outbound tunnel to the public proxy
+Documentation=https://example.com/cproxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cproxy
+Group=cproxy
+EnvironmentFile=-/etc/cproxy/cproxy.env
+ExecStart=/usr/local/bin/cproxy agent -f /etc/cproxy/agent.json
+Restart=always
+RestartSec=2s
+LimitNOFILE=65535
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

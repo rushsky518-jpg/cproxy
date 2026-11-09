@@ -1,0 +1,8 @@
+bin/
+dist/
+certs/
+*.log
+*.exe
+.DS_Store
+.smoke*/
+.certtest/

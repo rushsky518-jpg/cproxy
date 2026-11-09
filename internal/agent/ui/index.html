@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cproxy · 本地路由</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #1c2430;
+    --muted: #697586;
+    --line: #e3e7ee;
+    --brand: #2f6fed;
+    --brand-ink: #ffffff;
+    --good: #14804a;
+    --good-bg: #e7f6ee;
+    --bad: #b42318;
+    --bad-bg: #fdecea;
+    --warn: #b54708;
+    --warn-bg: #fff4e5;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+    --radius: 12px;
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 500px at 10% -10%, #eef3ff 0%, transparent 60%), var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 18px 28px; border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, .85); backdrop-filter: blur(6px);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; font-weight: 650; letter-spacing: .2px; }
+  .brand .tag { font-weight: 500; color: var(--muted); font-size: 13px; }
+  .logo {
+    display: inline-grid; place-items: center; width: 26px; height: 26px;
+    border-radius: 8px; background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: #fff; font-size: 15px; box-shadow: 0 2px 8px rgba(47, 111, 237, .35);
+  }
+  .conn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
+    border-radius: 999px; font-size: 13px; border: 1px solid var(--line); background: #fff; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #98a2b3; }
+  .conn.ok { color: var(--good); background: var(--good-bg); border-color: #b7e4c7; }
+  .conn.ok .dot { background: var(--good); box-shadow: 0 0 0 3px rgba(20, 128, 74, .15); }
+  .conn.off { color: var(--bad); background: var(--bad-bg); border-color: #f6c7c2; }
+  .conn.off .dot { background: var(--bad); }
+  main { max-width: 1080px; margin: 26px auto 64px; padding: 0 20px; display: grid; gap: 18px; }
+  .meta {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px 24px; padding: 16px 20px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .meta label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .meta code { font-size: 12.5px; word-break: break-all; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+    background: #f2f4f7; padding: 1px 6px; border-radius: 6px; border: 1px solid #e6e9ef;
+  }
+  .banner {
+    padding: 12px 16px; border-radius: var(--radius); border: 1px solid #f6c7c2;
+    background: var(--bad-bg); color: var(--bad); font-size: 13px;
+  }
+  .banner.warn { border-color: #f3d3a3; background: var(--warn-bg); color: var(--warn); }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .card h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; cursor: pointer; border-radius: 9px; padding: 7px 13px;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    transition: background .15s ease, border-color .15s ease, transform .05s ease;
+  }
+  button:hover { background: #f7f9fc; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
+  button.primary:hover { background: #255ed6; }
+  button.danger { color: var(--bad); }
+  button.danger:hover { background: var(--bad-bg); border-color: #f6c7c2; }
+  button.dirty { box-shadow: 0 0 0 3px rgba(47, 111, 237, .18); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { font-size: 12px; color: var(--muted); font-weight: 600; background: #fbfcfe; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fbfcff; }
+  input[type="text"] {
+    width: 100%; font: inherit; color: var(--ink); background: #fff;
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px;
+    font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px;
+  }
+  input[type="text"]:focus { outline: 2px solid rgba(47, 111, 237, .25); border-color: var(--brand); }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--brand); margin-top: 8px; }
+  .center { text-align: center; }
+  .right { text-align: right; white-space: nowrap; }
+  .pill { display: inline-block; font-size: 12px; padding: 2px 9px; border-radius: 999px; font-weight: 600; }
+  .pill.good { color: var(--good); background: var(--good-bg); }
+  .pill.bad { color: var(--bad); background: var(--bad-bg); }
+  .pill.idle { color: var(--muted); background: #eef1f5; }
+  .row-err { color: var(--bad); font-size: 12px; margin-top: 4px; }
+  .row-target { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .row-target a { color: var(--brand); text-decoration: none; }
+  .row-target a:hover { text-decoration: underline; }
+  .hint { margin: 0; padding: 12px 20px 16px; color: var(--muted); font-size: 12.5px; }
+  .empty { padding: 28px 20px; text-align: center; color: var(--muted); }
+  .tips { padding: 16px 20px 20px; }
+  .tips h2 { margin: 0 0 8px; }
+  .tips ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
+  .tips li { margin: 6px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 12px);
+    background: #101828; color: #fff; padding: 10px 16px; border-radius: 10px;
+    font-size: 13px; box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease; max-width: min(720px, 90vw);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: #7a271a; }
+  .hidden { display: none; }
+  @media (max-width: 760px) {
+    th:nth-child(4), td:nth-child(4) { display: none; }
+    header { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">⇄</span> cproxy <span class="tag">/ 本地路由编辑</span></div>
+  <div class="conn" id="conn"><span class="dot"></span><span id="connText">连接中…</span></div>
+</header>
+
+<main>
+  <div class="meta">
+    <div><label>服务器</label><code id="mServer">—</code></div>
+    <div><label>Agent</label><code id="mAgent">—</code></div>
+    <div><label>会话</label><code id="mSession">—</code></div>
+    <div><label>配置文件</label><code id="mConfig">—</code></div>
+  </div>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>路由</h2>
+      <div class="actions">
+        <button id="reconnect" class="ghost" title="断开并重新连接服务器">重连</button>
+        <button id="reload" class="ghost" title="丢弃修改并重新读取">重新加载</button>
+        <button id="add" class="ghost">+ 新增路由</button>
+        <button id="save" class="primary">保存并生效</button>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%">服务名</th>
+          <th style="width:24%">公开路径前缀</th>
+          <th style="width:24%">本地目标</th>
+          <th style="width:7%" class="center">去前缀</th>
+          <th style="width:17%">状态</th>
+          <th style="width:10%"></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="hint" id="hint">前缀必须与前端 <code>base</code> 一致（本项目为 <code>/higobase-admin</code>），多条路由的前缀不能重叠。</p>
+  </section>
+
+  <section class="card tips">
+    <h2>三步共享本地站点</h2>
+    <ol>
+      <li>本地启动带 base 的站点：<code>npm run dev -- --base=/higobase-admin/ --port 5174 --strictPort</code></li>
+      <li>把目标地址填成 <code>127.0.0.1:5174</code>，路径前缀填 <code>/higobase-admin</code>。</li>
+      <li>点“保存并生效”：路由立即在公网服务器上更新，同时写回配置文件，无需重启 agent。</li>
+    </ol>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const state = { data: null, rows: [], dirty: false, busy: false };
+  let toastTimer = null;
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function api(path, options) {
+    const res = await fetch(path, Object.assign({ cache: 'no-store' }, options));
+    let data = {};
+    try { data = await res.json(); } catch (_) { /* empty body */ }
+    if (!res.ok) {
+      const err = new Error(data.error || ('HTTP ' + res.status));
+      err.data = data;
+      throw err;
+    }
+    return data;
+  }
+
+  function toast(message, kind) {
+    const el = $('toast');
+    el.textContent = message;
+    el.className = 'toast show' + (kind === 'err' ? ' err' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, 3600);
+  }
+
+  function setDirty(value) {
+    state.dirty = value;
+    $('save').classList.toggle('dirty', value);
+    $('save').textContent = value ? '保存并生效 •' : '保存并生效';
+  }
+
+  function renderConn() {
+    const d = state.data;
+    const el = $('conn');
+    if (!d) return;
+    const ok = !!d.connected;
+    el.className = 'conn ' + (ok ? 'ok' : 'off');
+    $('connText').textContent = ok ? '已连接 · ' + d.session_id.slice(0, 8) : '未连接';
+    el.title = d.last_error || '';
+  }
+
+  function renderMeta() {
+    const d = state.data || {};
+    $('mServer').textContent = d.server || '—';
+    $('mAgent').textContent = d.agent_id || '—';
+    $('mSession').textContent = d.session_id ? d.session_id : '—';
+    $('mConfig').textContent = d.config_path || '（未落盘）';
+
+    const banner = $('banner');
+    if (d.last_error && !d.connected) {
+      banner.textContent = '连接失败：' + d.last_error;
+      banner.className = 'banner';
+    } else if (d.connected && d.last_error) {
+      banner.textContent = '上次错误：' + d.last_error;
+      banner.className = 'banner warn';
+    } else {
+      banner.className = 'banner hidden';
+    }
+  }
+
+  function statusCell(row) {
+    if (row.ok === false) {
+      return '<span class="pill bad">注册失败</span><div class="row-err">' + esc(row.error || '') + '</div>';
+    }
+    if (!state.data || !state.data.connected) {
+      return '<span class="pill idle">等待连接</span>';
+    }
+    const url = row.public_url || '';
+    const link = url ? '<div class="row-target"><a href="' + esc(url) + '" target="_blank" rel="noreferrer">' + esc(url) + '</a></div>' : '';
+    return '<span class="pill good">已生效</span>' + link;
+  }
+
+  function renderRows() {
+    const tbody = $('rows');
+    tbody.textContent = '';
+    if (!state.rows.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      td.className = 'empty';
+      td.textContent = '还没有路由，点“新增路由”开始。';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+    state.rows.forEach((row, index) => {
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td');
+      tdName.appendChild(input(index, 'name', row.name, 'higobase-dev'));
+      tr.appendChild(tdName);
+
+      const tdPrefix = document.createElement('td');
+      tdPrefix.appendChild(input(index, 'path_prefix', row.path_prefix, '/higobase-admin'));
+      tr.appendChild(tdPrefix);
+
+      const tdTarget = document.createElement('td');
+      tdTarget.appendChild(input(index, 'target', row.target, '127.0.0.1:5174'));
+      tr.appendChild(tdTarget);
+
+      const tdStrip = document.createElement('td');
+      tdStrip.className = 'center';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!row.strip_prefix;
+      cb.title = '去掉前缀后转发给本地目标（base path 部署时保持关闭）';
+      cb.addEventListener('change', () => { row.strip_prefix = cb.checked; setDirty(true); });
+      tdStrip.appendChild(cb);
+      tr.appendChild(tdStrip);
+
+      const tdStatus = document.createElement('td');
+      tdStatus.innerHTML = statusCell(row);
+      tr.appendChild(tdStatus);
+
+      const tdOps = document.createElement('td');
+      tdOps.className = 'right';
+      const del = document.createElement('button');
+      del.className = 'danger';
+      del.textContent = '删除';
+      del.addEventListener('click', () => {
+        state.rows.splice(index, 1);
+        setDirty(true);
+        renderRows();
+      });
+      tdOps.appendChild(del);
+      tr.appendChild(tdOps);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function input(index, key, value, placeholder) {
+    const el = document.createElement('input');
+    el.type = 'text';
+    el.value = value || '';
+    el.placeholder = placeholder;
+    el.spellcheck = false;
+    el.addEventListener('input', () => {
+      state.rows[index][key] = el.value;
+      setDirty(true);
+    });
+    return el;
+  }
+
+  function applyState(data) {
+    state.data = data;
+    state.rows = (data.services || []).map((s) => Object.assign({}, s));
+    renderMeta();
+    renderConn();
+    renderRows();
+  }
+
+  async function load() {
+    try {
+      const data = await api('/api/state');
+      applyState(data);
+      setDirty(false);
+    } catch (err) {
+      toast('读取状态失败：' + err.message, 'err');
+    }
+  }
+
+  async function save() {
+    if (state.busy) return;
+    const services = state.rows.map((r) => ({
+      name: (r.name || '').trim(),
+      path_prefix: (r.path_prefix || '').trim(),
+      target: (r.target || '').trim(),
+      strip_prefix: !!r.strip_prefix,
+    }));
+    if (!services.length) { toast('至少保留一条路由', 'err'); return; }
+    const missing = services.findIndex((s) => !s.name || !s.path_prefix || !s.target);
+    if (missing >= 0) { toast('第 ' + (missing + 1) + ' 行还有空字段', 'err'); return; }
+
+    state.busy = true;
+    $('save').disabled = true;
+    try {
+      const data = await api('/api/services', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ services }),
+      });
+      applyState(data.state);
+      setDirty(false);
+      toast('已生效，配置已写回文件', 'ok');
+    } catch (err) {
+      if (err.data && err.data.state) applyState(err.data.state);
+      toast('保存失败：' + err.message, 'err');
+    } finally {
+      state.busy = false;
+      $('save').disabled = false;
+    }
+  }
+
+  async function reconnect() {
+    try {
+      await api('/api/reconnect', { method: 'POST' });
+      toast('已请求重连', 'ok');
+      setTimeout(load, 400);
+    } catch (err) {
+      toast('重连失败：' + err.message, 'err');
+    }
+  }
+
+  $('add').addEventListener('click', () => {
+    state.rows.push({ name: '', path_prefix: '/', target: '127.0.0.1:5174', strip_prefix: false, ok: true });
+    setDirty(true);
+    renderRows();
+    const inputs = $('rows').querySelectorAll('input[type="text"]');
+    if (inputs.length) inputs[inputs.length - 3].focus();
+  });
+  $('save').addEventListener('click', save);
+  $('reload').addEventListener('click', () => { setDirty(false); load(); });
+  $('reconnect').addEventListener('click', reconnect);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (!state.dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  load();
+  setInterval(() => { if (!state.dirty && !state.busy) load(); }, 8000);
+})();
+</script>
+</body>
+</html>

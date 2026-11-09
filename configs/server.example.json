@@ -1,0 +1,18 @@
+{
+  "public_listen": "0.0.0.0:8080",
+  "admin_listen": "127.0.0.1:7002",
+  "token_file": "/etc/cproxy/token",
+  "tunnel_tls": {
+    "enabled": true,
+    "cert_file": "/etc/cproxy/certs/tunnel.crt",
+    "key_file": "/etc/cproxy/certs/tunnel.key",
+    "auto_generate": true,
+    "public_host": "c.example.com"
+  },
+  "max_conns_per_service": 64,
+  "idle_conn_timeout_seconds": 90,
+  "response_header_timeout_seconds": 60,
+  "shutdown_timeout_seconds": 10,
+  "log_level": "info",
+  "log_format": "text"
+}

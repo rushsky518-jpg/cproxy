@@ -1,0 +1,9 @@
+{
+  "server": "47.99.201.252:7070",
+  "agent_id": "a-01",
+  "token": "_YuatKPJ5P7sapxS2M3cHEnJ19ShvyEx6GeXhqqnvZk",
+  "tunnel_tls": { "fingerprint": "sha256:33e8d5d15c1ad821891fe38f850023f6f699c4b64cd7484b0f1b3c7c8b20c8cd" },
+  "services": [
+    { "name": "higobase", "path_prefix": "/higobase-admin", "target": "127.0.0.1:5173" }
+  ]
+}
